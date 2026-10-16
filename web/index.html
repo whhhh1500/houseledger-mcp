@@ -1,0 +1,22 @@
+<!doctype html><html><head><meta charset="utf-8"><title>HouseLedger — Alexa+ simulator</title>
+<style>body{font-family:system-ui;background:#0b1a2b;color:#eef;margin:0;display:flex;gap:16px;padding:16px}
+.col{flex:1;background:#13263d;border-radius:12px;padding:16px}.ring{width:80px;height:12px;border-radius:6px;background:#1a4f7a;margin-bottom:10px}
+.ring.on{background:linear-gradient(90deg,#00caff,#3b6cff);animation:p 1s infinite alternate}@keyframes p{to{opacity:.4}}
+.msg{margin:6px 0}.me{color:#9cf}.ax{color:#fff;font-weight:600}.card{background:#1c3657;border-radius:8px;padding:8px;margin:6px 0}
+.flag{border:2px solid #ffb300}small{color:#9ab}pre{white-space:pre-wrap;font-size:11px;color:#9ab}input,select,button{font-size:16px;padding:6px}</style></head>
+<body><div class="col"><div id="ring" class="ring"></div><h3>Alexa+ (simulated)</h3>
+<select id="sp"><option>Sam</option><option>Mia</option><option>Grandpa Joe</option></select>
+<input id="t" size="40" placeholder="Alexa, add papaya talons and 2 lb hamburger"><button onclick="say()">Speak</button>
+<button onclick="mic()">🎤</button><div id="log"></div></div>
+<div class="col"><h3>Echo Show card — Shared list</h3><div id="list"></div><h4>Tool trace (MCP)</h4><pre id="tr"></pre></div>
+<script>
+async function say(){const text=t.value;if(!text)return;t.value='';ring.className='ring on';
+log.innerHTML+=`<div class=msg><span class=me>${sp.value}:</span> ${text}</div>`;
+const r=await fetch('/api/say',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({speaker:sp.value,text})}).then(r=>r.json());
+ring.className='ring';const reply=r.reply||r.error;log.innerHTML+=`<div class="msg ax">Alexa: ${reply}</div>`;
+try{speechSynthesis.speak(new SpeechSynthesisUtterance(reply))}catch(e){}
+tr.textContent=JSON.stringify(r.trace,null,1);if(r.list)list.innerHTML=r.list.items.map(i=>`<div class="card ${i.needsConfirmation?'flag':''}">
+<b>${i.qty}${i.unit?' '+i.unit:''} ${i.name}</b>${i.needsConfirmation?' ⚠ confirm?':''}<br><small>added by ${i.addedBy} · ${new Date(i.addedAt).toLocaleString()}${i.heard?' · heard: “'+i.heard+'”':''}</small></div>`).join('')}
+function mic(){const R=window.SpeechRecognition||window.webkitSpeechRecognition;if(!R)return alert('No speech API');const r=new R();r.onresult=e=>{t.value=e.results[0][0].transcript;say()};r.start()}
+t.onkeydown=e=>{if(e.key==='Enter')say()}
+</script></body></html>
