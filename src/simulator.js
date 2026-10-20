@@ -2,6 +2,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import fs from "node:fs";
+import { snapshot } from "./ledger.js";
 
 // LLM config comes from environment variables only (any OpenAI-compatible endpoint).
 function env() {
@@ -13,12 +14,41 @@ function env() {
   };
 }
 
-const SYS = `You are Alexa+, a concise household voice assistant. Use the HouseLedger tools for lists, reminders, tasks.
-Always pass "by" = the current speaker. Pass the user's exact words as "heard" when adding. If add_items returns flagged items,
-ask the speaker to confirm them briefly. For "used/bought one" use adjust_item with a negative delta. Current time: {NOW}. Reply in 1-2 short spoken sentences.`;
+const SYS = `You are Alexa+, a concise household voice assistant. Use the HouseLedger MCP tools for lists, reminders and tasks; never just claim a change without calling a tool.
+Rules:
+- Always pass "by" = the current speaker. When adding, pass the speaker's exact words as "heard". Use units like "lb" for pounds.
+- If add_items returns flagged items, do not guess: ask the speaker to confirm the flagged name.
+- If the speaker corrects an item ("I meant X"), call confirm_item with the flagged item's id (see pending list below) and correctedName = X.
+- "we used / ate one pound of X" => adjust_item with a negative delta (never remove the whole line).
+- "remind me ..." => add_reminder kind="reminder"; "add a task / to-do ..." => add_reminder kind="task". If no time is given use at = "{NOW}".
+- "what's due" / "announce" => call tick. "what changed" => what_changed with who = speaker. "undo" => undo_last.
+Current time: {NOW}. Items awaiting confirmation: {PENDING}.
+Reply in 1-2 short spoken sentences.`;
+
+async function llm(cfg, body) {
+  let last;
+  for (let a = 0; a < 3; a++) {
+    try {
+      const r = await fetch(`${cfg.base}/chat/completions`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${cfg.key}` },
+        body: JSON.stringify(body), signal: AbortSignal.timeout(120000) });
+      const m = (await r.json()).choices?.[0]?.message;
+      if (m) return m;
+      last = new Error("LLM returned no message");
+    } catch (e) { last = e; }
+  }
+  throw last;
+}
 
 export function mountSimulator(app, port) {
   app.get("/", (_q, r) => r.type("html").send(fs.readFileSync(new URL("../web/index.html", import.meta.url))));
+  // Local demo-recording helpers (self-playing page + timing marks).
+  app.get("/demo", (_q, r) => r.type("html").send(fs.readFileSync(new URL("../web/demo.html", import.meta.url))));
+  app.get("/api/state", (_q, r) => r.json(snapshot()));
+  app.post("/api/demo-mark", (req, r) => {
+    const line = JSON.stringify({ t: Date.now(), ...req.body });
+    if (process.env.DEMO_MARKS) fs.appendFileSync(process.env.DEMO_MARKS, line + "\n");
+    console.log("MARK", line); r.json({ ok: true });
+  });
   app.post("/api/say", async (req, res) => {
     const { speaker = "Sam", text } = req.body;
     const cfg = env();
@@ -27,13 +57,11 @@ export function mountSimulator(app, port) {
     try {
       const { tools } = await client.listTools();
       const fns = tools.map(t => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.inputSchema } }));
-      const msgs = [{ role: "system", content: SYS.replace("{NOW}", new Date().toISOString()) }, { role: "user", content: `[speaker: ${speaker}] ${text}` }];
+      const pending = JSON.stringify(snapshot().items.filter(i => i.needsConfirmation).map(i => ({ id: i.id, name: i.name, addedBy: i.addedBy })));
+      const msgs = [{ role: "system", content: SYS.replaceAll("{NOW}", new Date().toISOString()).replace("{PENDING}", pending) }, { role: "user", content: `[speaker: ${speaker}] ${text}` }];
       const trace = [];
       for (let step = 0; step < 6; step++) {
-        const r = await fetch(`${cfg.base}/chat/completions`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${cfg.key}` },
-          body: JSON.stringify({ model: cfg.model, messages: msgs, tools: fns, temperature: 0.2 }) });
-        const m = (await r.json()).choices?.[0]?.message;
-        if (!m) throw new Error("LLM returned no message");
+        const m = await llm(cfg, { model: cfg.model, messages: msgs, tools: fns, temperature: 0.2 });
         msgs.push(m);
         if (!m.tool_calls?.length) return res.json({ reply: m.content, trace, list: (await client.callTool({ name: "list_items", arguments: {} })).structuredContent });
         for (const c of m.tool_calls) {

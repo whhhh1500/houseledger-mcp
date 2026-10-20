@@ -1,0 +1,39 @@
+1
+00:00:00,000 --> 00:00:18,000
+Alexa+ dropped who added what, wiped whole lines on "remove 1 lb", and dumped reminders into Overdue. HouseLedger is an MCP server that fixes that.
+
+2
+00:00:18,000 --> 00:00:35,000
+Self-hosted MCP over Streamable HTTP with the official TypeScript SDK, spec 2025-11-25. We ship a simulated Alexa+ client because Alexa+ itself is US-only.
+
+3
+00:00:35,000 --> 00:00:55,000
+Mia: "add papaya talons and two pounds of hamburger". add_items flags "papaya talons" as implausible; hamburger is 2 lb. Alexa asks Mia to confirm.
+
+4
+00:00:55,000 --> 00:01:10,000
+Mia: "I meant paper towels". confirm_item corrects the name; the card shows paper towels and 2 lb hamburger, attributed to Mia.
+
+5
+00:01:10,000 --> 00:01:30,000
+Sam: "we used one pound of hamburger". adjust_item applies a delta of minus one: 1 lb left, not the whole line wiped.
+
+6
+00:01:30,000 --> 00:01:50,000
+Sam adds a reminder (take out the trash) and a task (refill Grandpa's pills). After tick, the reminder archives; the task stays open.
+
+7
+00:01:50,000 --> 00:02:10,000
+Sam: "what changed since I last checked?" what_changed returns a per-person digest of Mia's adds and his own adjustment, across sessions.
+
+8
+00:02:10,000 --> 00:02:25,000
+Sam: "undo that". undo_last restores the previous quantity; the tool trace shows the reversal.
+
+9
+00:02:25,000 --> 00:02:45,000
+Eleven tools plus the houseledger://list resource: attribution, plausibility flags, delta quantities, reminder vs task, undo, per-person digests.
+
+10
+00:02:45,000 --> 00:03:00,000
+MIT licensed. Track: Alexa+. Friction: no public Alexa+ MCP test harness outside the US, so we built the simulator.

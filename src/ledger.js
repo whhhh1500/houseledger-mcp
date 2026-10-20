@@ -135,3 +135,8 @@ export function whatChanged({ who }) {
 }
 
 export function reset() { db = { items: [], reminders: [], log: [], seen: {} }; save(); }
+
+// Read-only snapshot for the simulator's Echo-Show card (includes archived reminders).
+export function snapshot() {
+  return { items: db.items.filter(i => !i.done).map(({ history, ...r }) => r), reminders: db.reminders.map(r => ({ ...r })) };
+}
