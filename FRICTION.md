@@ -1,0 +1,7 @@
+# HouseLedger — Friction Log (Build, Ship, Shape: Amazon Developer Hackathon 2026, Alexa+ track)
+
+| # | Task | Expected | Actual | Severity | Suggestion |
+|---|------|----------|--------|----------|------------|
+| 1 | Verify an Alexa+ connection to a self-hosted MCP server from outside the US | A developer test console to attach a custom MCP server to Alexa+ | Alexa+ is unavailable outside the US and there is no public developer harness for custom MCP servers, so we built a simulated Alexa+ client (web simulator + official MCP client) to exercise the server | High | Ship a web-based Alexa+ MCP test console with mock voice profiles |
+| 2 | Pick the MCP spec version and auth model Alexa+ expects | Alexa+ docs state the transport, auth (OAuth / device linking) and client capabilities (elicitation, MCP Apps) | Rules require spec >= 2025-11-25 and the SDK exports it, but Alexa+'s expected auth and client capabilities are not documented for third-party MCP hosts | Medium | Publish an Alexa+ MCP client capability matrix and an auth/linking guide |
+| 3 | Make the LLM (simulated Alexa+ brain) confirm misheard items instead of silently renaming | Tool-calling agent calls `confirm_item` when `add_items` returns `flagged` | Needed explicit system-prompt rules listing pending confirmations; without them the model sometimes renamed items itself | Low | Provide reference prompts / conformance tests for clarification loops in Alexa+ MCP docs |
